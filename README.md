@@ -11,11 +11,21 @@ And the more importance is in that you can do anything using only one transactio
 ## Demo
 ```js
 const spells = [
-{"connector": "Compound-A", method: "deposit", args:[amt1]},
-{"connector": "Compound-A", method: "borrow", args:[amt2]}
+    {"connector": "Compound-A", method: "deposit", args:[amt1]},
+    {"connector": "Compound-A", method: "borrow", args:[amt2]}
 ];
 await dsa.cast(...encodeSpells(spells), {from: user});
 ```
 
+## Test
+```bash
+# fork from etherum mainnet
+bash ./tools/forknet.sh
+
+truffle test
+```
+
 
 ## Develop
+1. add connector to support other defi protocols
+2. register connector
