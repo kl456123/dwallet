@@ -13,6 +13,7 @@ interface CTokenInterface {
     function exchangeRateCurrent() external returns (uint);
 
     function balanceOf(address owner) external view returns (uint256 balance);
+    function borrowBalanceStored(address account) external view returns (uint);
 }
 
 interface CETHInterface {

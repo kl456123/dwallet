@@ -29,41 +29,56 @@ const connectMapping = {
   'UNISWAP-A': 'ConnectV2UniswapV2'
 };
 
-const maxValue = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
 const cUsdcAddr = "0x39aa39c021dfbae8fac545936693ac917d5e7563";
-
-// const web3 = new Web3('http://localhost:9545');
-// mainnet addresses
-// const INSTA_INDEX_ADDR = '';
+const address_zero = "0x0000000000000000000000000000000000000000"
+const ethAddr = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+const daiAddr = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+const usdcAddr = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+const cEthAddr = "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5"
+const cDaiAddr = "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643"
+const maxValue = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
 
 const erc20Tokens = [];
 const debtsTokens = [];
 const erc20Address = [TOKEN_ADDR.DAI.contract, TOKEN_ADDR.USDC.contract, TOKEN_ADDR.WETH.contract];
+const erc20Names = ['DAI', 'USDC', 'WETH'];
+const erc20Decimals = [TOKEN_ADDR.DAI.decimals, TOKEN_ADDR.USDC.decimals, TOKEN_ADDR.WETH.decimals];
+const debtsNames = ['cUSDC', 'cETH'];
+const debtsDecimals = [8, 8];
+
+function decodeEvent(receipt, abi, eventName, eventArgs, castEvents) {
+  const requiredEventABI = abi.filter(a => a.type === "event").find(a => a.name === eventName)
+  if (!requiredEventABI) throw new Error(`${eventName} not found`)
+  const eventHash = web3.utils.keccak256(`${requiredEventABI.name}(${requiredEventABI.inputs.map(
+    a => a.type).toString()})`);
+  // console.log(receipt.logs);
+  const requiredEvent = receipt.logs.find(a => a.topics[0] === eventHash);
+  if(!requiredEvent)throw new Error(`event of hash: ${eventHash} not found`);
+  const decodedEvent = web3.eth.abi.decodeLog(requiredEventABI.inputs,
+    requiredEvent.data, requiredEvent.topics);
+  return decodedEvent;
+};
 
 
-async function checkAccount(name, account){
+async function checkAccount(account){
+  // print block number for timestamp
+  console.log('block number: ', await web3.eth.getBlockNumber());
   // eth
-  console.log(name, ': ', await web3.eth.getBalance(account));
+  console.log('ETH: ', formatUnits(await web3.eth.getBalance(account), 18));
   // asset tokens
-  // erc20Tokens.map(async token=>{
-    // const balance = await token.balanceOf(account);
-    // const name = await token.name();
-    // console.log(name, ': ', balance);
-  // });
+  await Promise.all(erc20Tokens.map(async (token, id)=>{
+    const balance = await token.balanceOf(account);
+    console.log(erc20Names[id], ': ', formatUnits(balance, erc20Decimals[id]).toString());
+  }));
 
 
-  // // debt tokens
-  // debtsTokens.map(async (tokenContract)=>{
-    // const borrowBalance = await tokenContract.borrowBalanceStored(account);
-    // const name = await tokenContract.name();
-    // console.log(name, ': ', borrowBalance.toString());
-  // });
-}
-
-async function loadAbi(contractName){
-   const ContractJson = require(contractName);
-    return contract(ContractJson).abi;
-
+  // debt tokens
+  await Promise.all(debtsTokens.map(async (tokenContract, id)=>{
+    const collateredBalance = await tokenContract.balanceOf(account);
+    const borrowBalance = await tokenContract.borrowBalanceStored(account);
+    console.log(debtsNames[id], ' collateral: ', formatUnits(collateredBalance, debtsDecimals[id]).toString());
+    console.log(debtsNames[id], ' debt: ', formatUnits(borrowBalance, debtsDecimals[id]).toString());
+  }));
 }
 
 // create dsa from user
@@ -78,9 +93,16 @@ async function buildDSAv2(owner) {
 async function impersonateAndTransfer(amt, token, toAddr) {
   const contract = await IERC20.at(token.contract);
   await contract.transfer(toAddr, amt, {from: token.holder});
+  const balance = await contract.balanceOf(toAddr);
 }
 
 function formatUnits(amount, decimals){
+  return amount;
+  // const toBN = web3.utils.toBN;
+  // return toBN(amount).div(toBN(10).pow(toBN(decimals)));
+}
+
+function parseUnits(amount, decimals){
   const toBN = web3.utils.toBN;
   return toBN(amount).mul(toBN(10).pow(toBN(decimals)));
 }
@@ -93,19 +115,20 @@ async function init(wallet){
     value: web3.utils.toWei("10", "ether")
   });
 
-  await impersonateAndTransfer(formatUnits(2000, TOKEN_ADDR.DAI.decimals), TOKEN_ADDR.DAI, dsaWallet.address);
-  await impersonateAndTransfer(formatUnits(2000, TOKEN_ADDR.USDC.decimals), TOKEN_ADDR.USDC, dsaWallet.address);
-  await impersonateAndTransfer(formatUnits(200, TOKEN_ADDR.WETH.decimals), TOKEN_ADDR.WETH, dsaWallet.address);
-  await impersonateAndTransfer(formatUnits(2000, TOKEN_ADDR.USDT.decimals), TOKEN_ADDR.USDT, dsaWallet.address);
+  await impersonateAndTransfer(parseUnits(2000, TOKEN_ADDR.DAI.decimals), TOKEN_ADDR.DAI, dsaWallet.address);
+  await impersonateAndTransfer(parseUnits(2000, TOKEN_ADDR.USDC.decimals), TOKEN_ADDR.USDC, dsaWallet.address);
+  await impersonateAndTransfer(parseUnits(200, TOKEN_ADDR.WETH.decimals), TOKEN_ADDR.WETH, dsaWallet.address);
+  await impersonateAndTransfer(parseUnits(2000, TOKEN_ADDR.USDT.decimals), TOKEN_ADDR.USDT, dsaWallet.address);
 
 
   cUsdcContract = await CTokenInterface.at(cUsdcAddr);
+  cEthContract = await CTokenInterface.at(cEthAddr);
+  debtsTokens.push(cUsdcContract);
+  debtsTokens.push(cEthContract);
 
-  // debtsTokens.push(cUsdcContract);
-
-  // erc20Address.map(async (addr)=>{
-    // erc20Tokens.push(await IERC20.at(cUsdcAddr));
-  // });
+  await Promise.all(erc20Address.map(async addr=>{
+    erc20Tokens.push(await IERC20.at(addr));
+  }));
 
 
   return dsaWallet;
@@ -125,7 +148,7 @@ function encodeSpells(spells){
   const targets = spells.map(a => a.connector)
   const calldatas = spells.map(a => {
     const functionName = a.method;
-    const abis = loadAbi(connectMapping[a.connector]);
+    const abis = artifacts.require(connectMapping[a.connector]).abi;
 
     const abi = abis.find(b => {
       return b.name === functionName
@@ -137,117 +160,123 @@ function encodeSpells(spells){
 }
 
 async function buy(cash, ratio, dsaWallet, wallet){
-    const total = formatUnits(200 * ratio, TOKEN_ADDR.USDC.decimals);
-    const loan = formatUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
+  const total = parseUnits(200 * ratio, TOKEN_ADDR.USDC.decimals);
+  const loan = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
 
-    const IdOne = "2878734423"
-    const IdTwo = "783243246"
+  const IdOne = "2878734423"
+  const IdTwo = "783243246"
 
-    const spells = [
-      {
-        connector: "UNISWAP-A",
-        method: "sell",
-        args: [ethAddr, usdcAddr, total, 1, 0, IdOne],// margin trade
-      },
-      {
-        connector: "COMPOUND-A",
-        method: "deposit",
-        args: ["ETH-A", 0, IdOne, 0]
-      },
-      {
-        connector: "COMPOUND-A",
-        method: "borrow",
-        args: ["USDC-A", loan, 0, 0], // borrow usdt, note use token id here
-      },
-      {
-        connector: "INSTAPOOL-A",
-        method: "flashPayback",
-        args: [usdcAddr, loan, 0, 0],
-      }
-    ]
+  const spells = [
+    {
+      connector: "UNISWAP-A",
+      method: "sell",
+      args: [ethAddr, usdcAddr, total, 1, 0, IdOne],// margin trade
+    },
+    {
+      connector: "COMPOUND-A",
+      method: "deposit",
+      args: ["ETH-A", 0, IdOne, 0]
+    },
+    {
+      connector: "COMPOUND-A",
+      method: "borrow",
+      args: ["USDC-A", loan, 0, 0], // borrow usdt, note use token id here
+    },
+    {
+      connector: "INSTAPOOL-A",
+      method: "flashPayback",
+      args: [usdcAddr, loan, 0, 0],
+    }
+  ]
 
-    const calldata = encodeFlashcastData(spells);
+  const calldata = encodeFlashcastData(spells);
 
-    const spells2 = [
-      {
-        connector: "INSTAPOOL-A",
-        method: "flashBorrowAndCast",
-        args: [
-          usdcAddr,
-          loan,
-          0, // route
-          calldata,
-        ],
-      }
-    ]
+  const spells2 = [
+    {
+      connector: "INSTAPOOL-A",
+      method: "flashBorrowAndCast",
+      args: [
+        usdcAddr,
+        loan,
+        0, // route
+        calldata,
+      ],
+    }
+  ]
 
-    await dsaWallet.cast(...encodeSpells(spells2), wallet, {from: wallet});
+  await dsaWallet.cast(...encodeSpells(spells2), wallet, {from: wallet});
 }
 
 
 async function sell(debt, dsaWallet, wallet){
-    const IdOne = "12515";
-    const IdTwo = "12122";
-    const spells = [
-      {
-        connector: "COMPOUND-A",
-        method: "payback",
-        args: ["USDC-A", maxValue, 0, IdOne]
-      },
-      {
-        connector: "COMPOUND-A",
-        method: "withdraw",
-        args: ["ETH-A", maxValue, 0, IdTwo]
-      },
-      {
-        connector: "UNISWAP-A",
-        method: "sell",
-        args: [usdcAddr, ethAddr, 0, 1, IdTwo, 0],// sell all
-      },
-      {
-        connector: "INSTAPOOL-A",
-        method: "flashPayback",
-        args: [usdcAddr, loan, 0, 0],
-      }
-    ]
+  const IdOne = "12515";
+  const IdTwo = "12122";
+  const spells = [
+    {
+      connector: "COMPOUND-A",
+      method: "payback",
+      args: ["USDC-A", maxValue, 0, IdOne]
+    },
+    {
+      connector: "COMPOUND-A",
+      method: "withdraw",
+      args: ["ETH-A", maxValue, 0, IdTwo]
+    },
+    {
+      connector: "UNISWAP-A",
+      method: "sell",
+      args: [usdcAddr, ethAddr, 0, 1, IdTwo, 0],// sell all
+    },
+    {
+      connector: "INSTAPOOL-A",
+      method: "flashPayback",
+      args: [usdcAddr, debt, 0, 0],
+    }
+  ]
 
-    const calldata = encodeFlashcastData(spells);
+  const calldata = encodeFlashcastData(spells);
 
-    const spells2 = [
-      {
-        connector: "INSTAPOOL-A",
-        method: "flashBorrowAndCast",
-        args: [
-          usdcAddr,
-          debt,
-          0, // route
-          calldata,
-        ],
-      }
-    ]
+  const spells2 = [
+    {
+      connector: "INSTAPOOL-A",
+      method: "flashBorrowAndCast",
+      args: [
+        usdcAddr,
+        debt,
+        0, // route
+        calldata,
+      ],
+    }
+  ]
 
-    await dsaWallet.cast(...encodeSpells(spells2), wallet1, {from: wallet});
+  await dsaWallet.cast(...encodeSpells(spells2), wallet, {from: wallet});
 }
 
-module.exports = async function main(callback){
+async function main(){
   // accounts
   const accounts = await web3.eth.getAccounts();
-  const alice = accounts[1];
-  const bob = accounts[2];
+  const alice = accounts[3];
+  const bob = accounts[4];
 
   // init dsa
   const dsaWallet = await init(alice);
-  console.log(dsaWallet.address);
-  await checkAccount('alice', dsaWallet.address);
+  await checkAccount(dsaWallet.address);
 
   // buy with flashloan(InstaPool)
-  // 500 USDC(alice) + 1500USDC(InstaPool)  => Uniswap => ETH
+  // 200 USDC(alice) + 600USDC(InstaPool)  => Uniswap => ETH
   const ratio = 3;
-  const cash = formatUnits(200, TOKEN_ADDR.USDC.decimals);
-  const debt = formatUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
+  const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
+  const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
   await buy(cash, ratio, dsaWallet, alice);
+  console.log('---------------after buy-------------------');
+  await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
   await sell(debt, dsaWallet, alice);
-  await callback();
+  console.log('---------------after sell-------------------');
+  await checkAccount(dsaWallet.address);
+}
+
+module.exports = function(callback){
+  main().then(callback).catch(callback);
 }
