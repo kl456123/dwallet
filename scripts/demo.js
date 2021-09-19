@@ -1,3 +1,12 @@
+//    Use DSA, you can do anything you want in defi in a very easy and convenient way.
+// For example, alice want to buy 600usd value eth, but she has only 200 usdc, so she
+// can borrow 400 usdc from pool to buy eth, then deposit eth to lending protocol(Compound
+// or Aave) to borrow 400 usdc to payback to pool.
+// 200 usdc(alice) + 400 usdc(borrowed from pool) ==swap==> 600usd valued eth ==deposit=>
+// compound ==borrow==> 400usdc(borrowed from compound) ==payback==>pool
+// now alice make success to use 200 usdc to buy 600 usd valued eth deposited in compound.
+// then she can get back if 400 usdc valued debt is cleared
+//
 const { TOKEN_ADDR } = require('../test/utils/constants');
 
 const IERC20 = artifacts.require('IERC20');
@@ -58,6 +67,21 @@ function decodeEvent(receipt, abi, eventName, eventArgs, castEvents) {
     requiredEvent.data, requiredEvent.topics);
   return decodedEvent;
 };
+
+async function advanceBlock(){
+  return new Promise((resolve, reject) => {
+    web3.currentProvider.send({
+      jsonrpc: "2.0",
+      method: "evm_mine",
+      id: new Date().getTime()
+    }, (err, result) => {
+      if (err) { return reject(err); }
+      const newBlockHash = web3.eth.getBlock('latest').hash;
+
+      return resolve(newBlockHash)
+    });
+  });
+}
 
 
 async function checkAccount(account){
@@ -170,7 +194,7 @@ async function buy(cash, ratio, dsaWallet, wallet){
     {
       connector: "UNISWAP-A",
       method: "sell",
-      args: [ethAddr, usdcAddr, total, 1, 0, IdOne],// margin trade
+      args: [ethAddr, usdcAddr, total, 0, 0, IdOne],// margin trade
     },
     {
       connector: "COMPOUND-A",
@@ -225,7 +249,7 @@ async function sell(debt, dsaWallet, wallet){
     {
       connector: "UNISWAP-A",
       method: "sell",
-      args: [usdcAddr, ethAddr, 0, 1, IdTwo, 0],// sell all
+      args: [usdcAddr, ethAddr, 0, 0, IdTwo, 0],// sell all
     },
     {
       connector: "INSTAPOOL-A",
@@ -252,6 +276,69 @@ async function sell(debt, dsaWallet, wallet){
   await dsaWallet.cast(...encodeSpells(spells2), wallet, {from: wallet});
 }
 
+async function swap(amt, dsaWallet, wallet){
+  const spells = [
+    {
+      connector: "UNISWAP-A",
+      method: "sell",
+      args: [
+        ethAddr,
+        usdcAddr,
+        parseUnits(amt, TOKEN_ADDR.USDC.decimals),
+        0,
+        0,
+        0
+      ]
+    }
+  ];
+  await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
+}
+
+async function payback(amt, dsaWallet, wallet){
+  let _amt;
+  if (amt == -1){
+    _amt = maxValue;
+  }else{
+    _amt = parseUnits(amt, TOKEN_ADDR.USDC.decimals);
+  }
+  const spells = [
+    {
+      connector: "COMPOUND-A",
+      method: "payback",
+      args: ["USDC-A", _amt, 0, 0]
+    }
+  ];
+  await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
+}
+
+async function withdraw(dsaWallet, wallet){
+  const spells = [
+    {
+      connector: "COMPOUND-A",
+      method: "withdraw",
+      args: ["ETH-A", maxValue, 0, 0]
+    }
+  ];
+  await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
+}
+
+async function withdrawAndSwap(dsaWallet, wallet){
+  const IdOne = "12515";
+  const spells = [
+    {
+      connector: "COMPOUND-A",
+      method: "withdraw",
+      args: ["ETH-A", maxValue, 0, IdOne]
+    },
+    {
+      connector: "UNISWAP-A",
+      method: "sell",
+      args: [usdcAddr, ethAddr, 0, 0, IdOne, 0],// sell all
+    },
+  ];
+  await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
+}
+
 async function main(){
   // accounts
   const accounts = await web3.eth.getAccounts();
@@ -268,13 +355,38 @@ async function main(){
   const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
   const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
   await buy(cash, ratio, dsaWallet, alice);
-  console.log('---------------after buy-------------------');
+  console.log('---------------buy-------------------');
+  await checkAccount(dsaWallet.address);
+
+  for(let i=0; i<100; i++){
+    await advanceBlock();
+  }
+  console.log('---------------advance 100 block------------------');
   await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
-  await sell(debt, dsaWallet, alice);
-  console.log('---------------after sell-------------------');
+  // await sell(debt, dsaWallet, alice);
+  // console.log('---------------sell-------------------');
+  // await checkAccount(dsaWallet.address);
+
+  // swap 600 usdc for eth
+  // note that little loss of 0.3% protocol fee in uniswap
+  await swap(600, dsaWallet, alice);
+  console.log('---------------swap-------------------');
   await checkAccount(dsaWallet.address);
+
+  // payback all, including 400 usdc + its interest
+  await payback(-1, dsaWallet, alice);
+  console.log('---------------payback-------------------');
+  await checkAccount(dsaWallet.address);
+
+  await withdraw(dsaWallet, alice);
+  console.log('---------------withdraw-------------------');
+  await checkAccount(dsaWallet.address);
+
+  // await withdrawAndSwap(dsaWallet, alice);
+  // console.log('---------------withdraw and swap-------------------');
+  // await checkAccount(dsaWallet.address);
 }
 
 module.exports = function(callback){

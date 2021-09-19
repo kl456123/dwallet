@@ -42,7 +42,7 @@ contract('Instapool', async wallets=>{
       {
         connector: "UNISWAP-A",
         method: "sell",
-        args: [ethAddr, usdcAddr, total, 1, 0, IdOne],// margin trade
+        args: [ethAddr, usdcAddr, total, 0, 0, IdOne],// margin trade
       },
       {
         connector: "COMPOUND-A",
@@ -103,7 +103,7 @@ contract('Instapool', async wallets=>{
       {
         connector: "UNISWAP-A",
         method: "sell",
-        args: [usdcAddr, ethAddr, 0, 1, IdTwo, 0],// sell all
+        args: [usdcAddr, ethAddr, 0, 0, IdTwo, 0],// sell all
       },
       {
         connector: "INSTAPOOL-A",
