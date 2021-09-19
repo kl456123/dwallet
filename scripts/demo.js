@@ -110,6 +110,7 @@ async function buildDSAv2(owner) {
   const instaIndex = await InstaIndex.deployed();
   const receipt = await instaIndex.build(owner, 1, owner);
   const event = receipt.logs[0]
+  if(!event)throw new Error('no event found in tx');
   return await InstaImplementationM1.at(event.args.account);
 };
 
