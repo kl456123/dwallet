@@ -10,7 +10,7 @@ import { TokenInterface } from "../../common/interfaces.sol";
 import { Stores } from "../../common/stores.sol";
 import { Helpers } from "./helpers.sol";
 import { Events } from "./events.sol";
-import { CETHInterface, CTokenInterface } from "./interface.sol";
+import { CETHInterface, CTokenInterface, CompoundMappingInterface } from "./interface.sol";
 
 abstract contract CompoundResolver is Events, Helpers {
     /**
@@ -63,7 +63,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = depositRaw(token, cToken, amt, getId, setId);
     }
 
@@ -84,7 +84,6 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 setId
     ) public payable returns (string memory _eventName, bytes memory _eventParam) {
         uint _amt = getUint(getId, amt);
-        
         require(token != address(0) && cToken != address(0), "invalid token/ctoken address");
 
         CTokenInterface cTokenContract = CTokenInterface(cToken);
@@ -117,7 +116,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = withdrawRaw(token, cToken, amt, getId, setId);
     }
 
@@ -163,7 +162,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = borrowRaw(token, cToken, amt, getId, setId);
     }
 
@@ -219,7 +218,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = paybackRaw(token, cToken, amt, getId, setId);
     }
 
@@ -285,7 +284,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = depositCTokenRaw(token, cToken, amt, getId, setId);
     }
 
@@ -341,7 +340,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint getId,
         uint setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
-        (address token, address cToken) = compMapping.getMapping(tokenId);
+        (address token, address cToken) = getCompMapping().getMapping(tokenId);
         (_eventName, _eventParam) = withdrawCTokenRaw(token, cToken, cTokenAmt, getId, setId);
     }
 
@@ -420,6 +419,7 @@ abstract contract CompoundResolver is Events, Helpers {
         uint256 getId,
         uint256 setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
+        CompoundMappingInterface compMapping = getCompMapping();
         (address tokenToPay, address cTokenToPay) = compMapping.getMapping(tokenIdToPay);
         (address tokenInReturn, address cTokenColl) = compMapping.getMapping(tokenIdInReturn);
 

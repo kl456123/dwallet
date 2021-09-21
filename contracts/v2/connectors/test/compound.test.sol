@@ -38,13 +38,13 @@ interface ComptrollerInterface {
     function claimComp(address) external;
 }
 
-interface InstaMapping {
-    function cTokenMapping(address) external view returns (address);
-}
-
 interface MemoryInterface {
     function getUint(uint _id) external returns (uint _num);
     function setUint(uint _id, uint _val) external;
+}
+
+interface InstaMappingInterface {
+    function cTokenMapping(address) external view returns (address);
 }
 
 contract DSMath {
@@ -168,7 +168,7 @@ contract BasicResolver is CompoundHelpers {
         uint setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
         uint _amt = getUint(getId, amt);
-        address cToken = InstaMapping(getMappingAddr()).cTokenMapping(token);
+        address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         enterMarket(cToken);
         if (token == getAddressETH()) {
             _amt = _amt == uint(-1) ? address(this).balance : _amt;
@@ -201,7 +201,7 @@ contract BasicResolver is CompoundHelpers {
         uint setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
         uint _amt = getUint(getId, amt);
-        address cToken = InstaMapping(getMappingAddr()).cTokenMapping(token);
+        address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         CTokenInterface cTokenContract = CTokenInterface(cToken);
         if (_amt == uint(-1)) {
             TokenInterface tokenContract = TokenInterface(token);
@@ -234,7 +234,7 @@ contract BasicResolver is CompoundHelpers {
         uint setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
         uint _amt = getUint(getId, amt);
-        address cToken = InstaMapping(getMappingAddr()).cTokenMapping(token);
+        address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         enterMarket(cToken);
         require(CTokenInterface(cToken).borrow(_amt) == 0, "borrow-failed");
         setUint(setId, _amt);
@@ -259,7 +259,7 @@ contract BasicResolver is CompoundHelpers {
         uint setId
     ) external payable returns (string memory _eventName, bytes memory _eventParam) {
         uint _amt = getUint(getId, amt);
-        address cToken = InstaMapping(getMappingAddr()).cTokenMapping(token);
+        address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         CTokenInterface cTokenContract = CTokenInterface(cToken);
         _amt = _amt == uint(-1) ? cTokenContract.borrowBalanceCurrent(address(this)) : _amt;
 

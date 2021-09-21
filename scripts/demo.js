@@ -12,14 +12,7 @@ const { TOKEN_ADDR } = require('../test/utils/constants');
 const IERC20 = artifacts.require('IERC20');
 const InstaIndex = artifacts.require('InstaIndex'); // dsa manager
 const InstaImplementationM1 = artifacts.require('InstaImplementationM1'); // dsa api
-const CTokenInterface = artifacts.require('CTokenInterface');
-
-// abis
-const IERC20Json = require('../build/contracts/IERC20.json');
-const CTokenInterfaceJson = require('../build/contracts/CTokenInterface.json');
-const InstaIndexJson = require('../build/contracts/InstaIndex.json');
-const InstaImplementationM1Json = require('../build/contracts/InstaImplementationM1.json');
-
+const CTokenInterface = artifacts.require('OnlyCTokenInterface');
 
 // mapping
 const connectMapping = {
@@ -123,8 +116,8 @@ async function impersonateAndTransfer(amt, token, toAddr) {
 
 function formatUnits(amount, decimals){
   return amount;
-  // const toBN = web3.utils.toBN;
-  // return toBN(amount).div(toBN(10).pow(toBN(decimals)));
+  const toBN = web3.utils.toBN;
+  return toBN(amount).div(toBN(10).pow(toBN(decimals)));
 }
 
 function parseUnits(amount, decimals){
@@ -144,7 +137,6 @@ async function init(wallet){
   await impersonateAndTransfer(parseUnits(2000, TOKEN_ADDR.USDC.decimals), TOKEN_ADDR.USDC, dsaWallet.address);
   await impersonateAndTransfer(parseUnits(200, TOKEN_ADDR.WETH.decimals), TOKEN_ADDR.WETH, dsaWallet.address);
   await impersonateAndTransfer(parseUnits(2000, TOKEN_ADDR.USDT.decimals), TOKEN_ADDR.USDT, dsaWallet.address);
-
 
   cUsdcContract = await CTokenInterface.at(cUsdcAddr);
   cEthContract = await CTokenInterface.at(cEthAddr);
@@ -184,7 +176,16 @@ function encodeSpells(spells){
   return [targets, calldatas];
 }
 
-async function buy(cash, ratio, dsaWallet, wallet){
+/**
+ * @param route, flashloan source route. (0: dYdX(ETH,DAI,USDC only),
+ *      1: MakerDAO(DAI only), 2: Compound(All borrowable tokens in Compound),
+ *      3: AaveV2(All borrowable tokens in AaveV2))
+ * @param cash token owned by user
+ * @param dsaWallet dsa account owned by user
+ * @param wallet user account address
+ * @param ratio equals to (cash + loan)/ cash
+ */
+async function buy(cash, ratio, dsaWallet, wallet, route=0){
   const total = parseUnits(200 * ratio, TOKEN_ADDR.USDC.decimals);
   const loan = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
 
@@ -223,7 +224,7 @@ async function buy(cash, ratio, dsaWallet, wallet){
       args: [
         usdcAddr,
         loan,
-        0, // route
+        route, // route
         calldata,
       ],
     }
@@ -233,7 +234,7 @@ async function buy(cash, ratio, dsaWallet, wallet){
 }
 
 
-async function sell(debt, dsaWallet, wallet){
+async function sell(debt, dsaWallet, wallet, route=0){
   const IdOne = "12515";
   const IdTwo = "12122";
   const spells = [
@@ -268,7 +269,7 @@ async function sell(debt, dsaWallet, wallet){
       args: [
         usdcAddr,
         debt,
-        0, // route
+        route, // route
         calldata,
       ],
     }
@@ -355,35 +356,35 @@ async function main(){
   const ratio = 3;
   const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
   const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
-  await buy(cash, ratio, dsaWallet, alice);
+  await buy(cash, ratio, dsaWallet, alice, 2);
   console.log('---------------buy-------------------');
   await checkAccount(dsaWallet.address);
 
-  for(let i=0; i<100; i++){
-    await advanceBlock();
-  }
-  console.log('---------------advance 100 block------------------');
-  await checkAccount(dsaWallet.address);
+  // for(let i=0; i<100; i++){
+    // await advanceBlock();
+  // }
+  // console.log('---------------advance 100 block------------------');
+  // await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
-  // await sell(debt, dsaWallet, alice);
-  // console.log('---------------sell-------------------');
-  // await checkAccount(dsaWallet.address);
+  await sell(debt, dsaWallet, alice, 2);
+  console.log('---------------sell-------------------');
+  await checkAccount(dsaWallet.address);
 
   // swap 600 usdc for eth
   // note that little loss of 0.3% protocol fee in uniswap
-  await swap(600, dsaWallet, alice);
-  console.log('---------------swap-------------------');
-  await checkAccount(dsaWallet.address);
+  // await swap(600, dsaWallet, alice);
+  // console.log('---------------swap-------------------');
+  // await checkAccount(dsaWallet.address);
 
   // payback all, including 400 usdc + its interest
-  await payback(-1, dsaWallet, alice);
-  console.log('---------------payback-------------------');
-  await checkAccount(dsaWallet.address);
+  // await payback(-1, dsaWallet, alice);
+  // console.log('---------------payback-------------------');
+  // await checkAccount(dsaWallet.address);
 
-  await withdraw(dsaWallet, alice);
-  console.log('---------------withdraw-------------------');
-  await checkAccount(dsaWallet.address);
+  // await withdraw(dsaWallet, alice);
+  // console.log('---------------withdraw-------------------');
+  // await checkAccount(dsaWallet.address);
 
   // await withdrawAndSwap(dsaWallet, alice);
   // console.log('---------------withdraw and swap-------------------');

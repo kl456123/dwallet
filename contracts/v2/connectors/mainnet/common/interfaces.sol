@@ -13,9 +13,11 @@ interface TokenInterface {
 interface MemoryInterface {
     function getUint(uint id) external returns (uint num);
     function setUint(uint id, uint val) external;
+    function getBroadcastAddr(uint _id) external view returns (address _addr);
+    function setBroadcastAddr(uint _id, address _addr) external;
 }
 
-interface InstaMapping {
+interface InstaMappingInterface {
     function cTokenMapping(address) external view returns (address);
     function gemJoinMapping(bytes32) external view returns (address);
 }
@@ -24,4 +26,8 @@ interface AccountInterface {
     function enable(address) external;
     function disable(address) external;
     function isAuth(address) external view returns (bool);
+}
+
+interface ImplementationM1Interface{
+    function connectorsM1Memory()external view returns(address);
 }

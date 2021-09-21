@@ -1,11 +1,11 @@
 const InstaIndex = artifacts.require('InstaIndex');
 const InstaList = artifacts.require('InstaList');
 const InstaAccountV2 = artifacts.require('InstaAccountV2');
-const InstaMemory = artifacts.require('InstaMemory');
+const OwnedInstaMemory = artifacts.require('OwnedInstaMemory');
 // connectors
-const InstaConnectorsV2Impl = artifacts.require('InstaConnectorsV2Impl');
 const InstaConnectorsV2 = artifacts.require('InstaConnectorsV2');
-const InstaConnectorsV2Proxy = artifacts.require('InstaConnectorsV2Proxy');
+// const InstaConnectorsV2Impl = artifacts.require('InstaConnectorsV2Impl');
+// const InstaConnectorsV2Proxy = artifacts.require('InstaConnectorsV2Proxy');
 // impl
 const InstaImplementations = artifacts.require('InstaImplementations');
 const InstaDefaultImplementation = artifacts.require('InstaDefaultImplementation');
@@ -29,8 +29,8 @@ module.exports = async function (deployer, network, accounts) {
 
   console.log("instaList deployed: ", instaList.address);
 
-  await deployer.deploy(InstaMemory);
-  const instaMemory = await InstaMemory.deployed();
+  await deployer.deploy(OwnedInstaMemory);
+  const instaMemory = await OwnedInstaMemory.deployed();
 
   console.log("instaMemory deployed: ", instaMemory.address);
 
@@ -42,10 +42,10 @@ module.exports = async function (deployer, network, accounts) {
 
   //////////////////////////////////////////////////
   // to be removed
-  await deployer.deploy(InstaConnectorsV2Impl);
-  const instaConnectorsV2Impl = await InstaConnectorsV2Impl.deployed();
-  // connectors proxy
-  await deployer.deploy(InstaConnectorsV2Proxy, instaConnectorsV2Impl.address, deployerAddress, "0x");
+  // await deployer.deploy(InstaConnectorsV2Impl);
+  // const instaConnectorsV2Impl = await InstaConnectorsV2Impl.deployed();
+  // // connectors proxy
+  // await deployer.deploy(InstaConnectorsV2Proxy, instaConnectorsV2Impl.address, deployerAddress, "0x");
   //////////////////////////////////////////////////
 
   // InstaImplementations mapping
@@ -64,7 +64,7 @@ module.exports = async function (deployer, network, accounts) {
 
   console.log("InstaDefaultImplementation deployed: ", instaDefaultImplementation.address);
 
-  await deployer.deploy(InstaImplementationM1, instaIndex.address, instaConnectorsV2.address);
+  await deployer.deploy(InstaImplementationM1, instaIndex.address, instaConnectorsV2.address, instaMemory.address);
   const instaImplementationM1 = await InstaImplementationM1.deployed();
 
   console.log("InstaImplementationM1 deployed: ", instaImplementationM1.address);
@@ -74,14 +74,14 @@ module.exports = async function (deployer, network, accounts) {
   const setBasicsArgs = [deployerAddress, instaList.address, instaAccountV2.address, instaConnectorsV2.address];
   await instaIndex.setBasics(...setBasicsArgs);
 
-  // init mapping
+  // 2. init mapping
   const implementationV1Args = [
     instaImplementationM1.address,
     [
-      "cast(string[],bytes[],address)"
+      "cast(string[],bytes[],address)",
+      "connectorsM1Memory()"
     ].map((a) => web3.utils.keccak256(a).slice(0, 10))
   ]
   await implementationsMapping.setDefaultImplementation(instaDefaultImplementation.address, {from: deployerAddress});
   await implementationsMapping.addImplementation(...implementationV1Args, {from: deployerAddress});
-
 }

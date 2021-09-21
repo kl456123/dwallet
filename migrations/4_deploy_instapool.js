@@ -1,8 +1,13 @@
 const InstaPoolV2Implementation = artifacts.require('InstaPoolV2Implementation');
 const InstaPoolV2 = artifacts.require('InstaPoolV2');
+const ConnectV2InstaPool = artifacts.require('ConnectV2InstaPool');
 const InstaIndex = artifacts.require('InstaIndex');
 const InstaList = artifacts.require('InstaList');
-const InstaPoolCompoundMapping = artifacts.require('InstaPoolCompoundMapping');
+const InstaPoolCompoundMapping = artifacts.require('InstaCompoundMapping');
+const OwnedInstaMemory = artifacts.require('OwnedInstaMemory');
+const InstaConnectorsV2 = artifacts.require('InstaConnectorsV2');
+const CTokenInterface = artifacts.require('OnlyCTokenInterface');
+const InstaMapping = artifacts.require('InstaMapping');
 
 // internal pools
 const ConnectMaker = artifacts.require('ConnectMaker');
@@ -20,9 +25,9 @@ module.exports = async function (deployer, network, accounts) {
 
   const instaIndex = await InstaIndex.deployed();
   const instaList = await InstaList.deployed();
+  const instaConnectorsV2 = await InstaConnectorsV2.deployed();
 
   const ctokenMapping = {
-    // "ETH-A": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
     "BAT-A": "0x6c8c6b02e7b2be14d4fa6022dfd6d75921d90e4e",
     "COMP-A": "0x70e36f6bf80a52b3b46b3af8e106cc0ed743e8e4",
     "DAI-A": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
@@ -35,25 +40,43 @@ module.exports = async function (deployer, network, accounts) {
     "TUSD-A": "0x12392F67bdf24faE0AF363c24aC620a2f67DAd86",
     "LINK-A": "0xFAce851a4921ce59e912d19329929CE6da6EB0c7"
   }
+  // be care for the order of tokens
+  const cTokens = Object.values(ctokenMapping);
+  const tokenNames = Object.keys(ctokenMapping);
 
-  await deployer.deploy(InstaPoolCompoundMapping, Object.values(ctokenMapping));
+  const tokens = await Promise.all(Object.keys(ctokenMapping).map(async (tokenName)=>{
+    const cToken = await CTokenInterface.at(ctokenMapping[tokenName]);
+    const tokenAddress = await cToken.underlying();
+    return tokenAddress;
+  }));
+  tokenNames.push('ETH-A');
+  tokens.push('0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE');
+  cTokens.push('0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5');
+
+  const InstaCompoundMappingArgs = [instaIndex.address, instaConnectorsV2.address, tokenNames, tokens, cTokens];
+
+  await deployer.deploy(InstaPoolCompoundMapping, ...InstaCompoundMappingArgs);
   const instaPoolCompoundMapping = await InstaPoolCompoundMapping.deployed();
 
   console.log("instaPoolCompoundMapping deployed: ", instaPoolCompoundMapping.address);
 
-  await deployer.deploy(ConnectMaker);
-  const makerConnector = await ConnectMaker.deployed();
+  // instamapping
+  await deployer.deploy(InstaMapping, instaIndex.address, instaConnectorsV2.address);
+  const instaMapping = await InstaMapping.deployed();
 
+  console.log("instaMapping deployed: ", instaMapping.address);
+
+  // static connectors that cannot modify itself storage
+  await deployer.deploy(ConnectMaker, instaMapping.address);
+  const makerConnector = await ConnectMaker.deployed();
   console.log("MakerConnector deployed: ", makerConnector.address);
 
   await deployer.deploy(ConnectAave);
   const connectAave = await ConnectAave.deployed();
-
   console.log("ConnectAave deployed: ", connectAave.address);
 
-  await deployer.deploy(ConnectCompound);
+  await deployer.deploy(ConnectCompound, instaMapping.address);
   const connectCompound = await ConnectCompound.deployed();
-
   console.log("ConnectCompound deployed: ", connectCompound.address);
 
   await deployer.deploy(InstaPoolV2Implementation);
@@ -68,8 +91,8 @@ module.exports = async function (deployer, network, accounts) {
   console.log("InstaPoolV2 deployed: ", instaPoolV2.address);
 
   // set aave and maker
-  const InstaPoolV2Proxy = await InstaPoolV2Implementation.at(instaPoolV2.address);
-  // const InstaPoolV2Proxy = instaPoolV2Implementation;
+  // const InstaPoolV2Proxy = await InstaPoolV2Implementation.at(instaPoolV2.address);
+  const InstaPoolV2Proxy = instaPoolV2Implementation;
   // anybody can initialize it other than admin.
   await InstaPoolV2Proxy.initialize(MAKER_VAULT_ID, makerConnector.address,
     connectAave.address, instaIndex.address, instaList.address, {from: deployerAddress});
@@ -86,4 +109,20 @@ module.exports = async function (deployer, network, accounts) {
   await impersonateAndTransfer(1000, TOKEN_ADDR.USDC, InstaPoolV2Proxy.address);
   await impersonateAndTransfer(1000, TOKEN_ADDR.WETH, InstaPoolV2Proxy.address);
   await impersonateAndTransfer(1000, TOKEN_ADDR.USDT, InstaPoolV2Proxy.address);
+
+  // init instamapping
+  await instaMapping.addCtknMapping(Object.values(ctokenMapping), {from: deployerAddress});
+  // await instaMapping.addGemJoinMapping({from: deployerAddress});
+
+  // broadcast address
+  const instaMemory = await OwnedInstaMemory.deployed();
+  const broadcastMapping = {
+    'INSTAPOOL': InstaPoolV2Proxy.address,
+    'COMPMAPPING': instaPoolCompoundMapping.address,
+    'INSTAMAPPING': instaMapping.address
+  };
+  await Promise.all(Object.keys(broadcastMapping).map(async name=>{
+    const id = web3.utils.keccak256(name);
+    await instaMemory.setBroadcastAddr(id, broadcastMapping[name], {from: deployerAddress});
+  }));
 }

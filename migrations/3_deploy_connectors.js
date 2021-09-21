@@ -13,8 +13,8 @@ const connectMapping = {
   'DYDX-A': 'ConnectV2Dydx',
   'FEE-A': 'ConnectV2Fee',
   'GELATO-A': 'ConnectV2Gelato',
-  // 'INSTAPOOL-A': 'ConnectV2InstaPool',
-  // 'MAKERDAO-A': 'ConnectV2MakerDAO',// out of gas when deploying
+  'INSTAPOOL-A': 'ConnectV2InstaPool',
+  'MAKERDAO-A': 'ConnectV2MakerDAO',// out of gas when deploying
   'UNISWAP-A': 'ConnectV2UniswapV2'
 };
 
@@ -31,12 +31,6 @@ module.exports = async function (deployer, network, accounts) {
     const connector = await ConnectorInstance.deployed();
     addressMapping[key] = connector.address;
   }
-
-  // deploy instapool out of for-loop
-  const ConnectV2InstaPool = artifacts.require('ConnectV2InstaPool');
-  await deployer.deploy(ConnectV2InstaPool, InstaPoolV2.address);
-  const connectV2InstaPool = await ConnectV2InstaPool.deployed();
-  addressMapping['INSTAPOOL-A'] = connectV2InstaPool.address;
 
   // add connectors to instaConnectorsV2
   const instaConnectorsV2 = await InstaConnectorsV2.deployed();

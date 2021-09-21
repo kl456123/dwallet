@@ -9,9 +9,15 @@ interface ConnectorsInterface {
     function chief(address) external view returns (bool);
 }
 
-interface CTokenInterface {
+interface OnlyCTokenInterface {
     function isCToken() external view returns (bool);
     function underlying() external view returns (address);
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function borrowBalanceStored(address account) external view returns (uint);
+}
+
+interface AccountInterface{
+    function instaIndex() external view returns(address);
 }
 
 abstract contract Helpers {
@@ -27,19 +33,22 @@ abstract contract Helpers {
     ConnectorsInterface public immutable connectors;
 
     // InstaIndex Address.
-    IndexInterface public constant instaIndex = IndexInterface(0x2971AdFa57b20E5a416aE5a708A8655A9c74f723);
+    IndexInterface public immutable instaIndex;
 
     address public constant ethAddr = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     mapping (string => TokenMap) public cTokenMapping;
+    // token => name
+    mapping (address=>string) public tokenMapping;
 
     modifier isChief {
         require(msg.sender == instaIndex.master() || connectors.chief(msg.sender), "not-an-chief");
         _;
     }
 
-    constructor(address _connectors) {
+    constructor(address _instaIndex, address _connectors) {
         connectors = ConnectorsInterface(_connectors);
+        instaIndex = IndexInterface(_instaIndex);
     }
 
     function _addCtokenMapping(
@@ -59,7 +68,7 @@ abstract contract Helpers {
             require(_tokens[i] != address(0), "addCtokenMapping: _tokens address not vaild");
             require(_ctokens[i] != address(0), "addCtokenMapping: _ctokens address not vaild");
 
-            CTokenInterface _ctokenContract = CTokenInterface(_ctokens[i]);
+            OnlyCTokenInterface _ctokenContract = OnlyCTokenInterface(_ctokens[i]);
 
             require(_ctokenContract.isCToken(), "addCtokenMapping: not a cToken");
             if (_tokens[i] != ethAddr) {
@@ -70,6 +79,7 @@ abstract contract Helpers {
                 _ctokens[i],
                 _tokens[i]
             );
+            tokenMapping[_tokens[i]] = _names[i];
             emit LogCTokenAdded(_names[i], _tokens[i], _ctokens[i]);
         }
     }
@@ -93,7 +103,7 @@ abstract contract Helpers {
             require(_tokens[i] != address(0), "updateCtokenMapping: _tokens address not vaild");
             require(_ctokens[i] != address(0), "updateCtokenMapping: _ctokens address not vaild");
 
-            CTokenInterface _ctokenContract = CTokenInterface(_ctokens[i]);
+            OnlyCTokenInterface _ctokenContract = OnlyCTokenInterface(_ctokens[i]);
 
             require(_ctokenContract.isCToken(), "updateCtokenMapping: not a cToken");
             if (_tokens[i] != ethAddr) {
@@ -104,6 +114,7 @@ abstract contract Helpers {
                 _ctokens[i],
                 _tokens[i]
             );
+            tokenMapping[_tokens[i]] = _names[i];
             emit LogCTokenUpdated(_names[i], _tokens[i], _ctokens[i]);
         }
     }
@@ -127,11 +138,12 @@ contract InstaCompoundMapping is Helpers {
     string constant public name = "Compound-Mapping-v1.1";
 
     constructor(
+        address _instaIndex,
         address _connectors,
         string[] memory _ctokenNames,
         address[] memory _tokens,
         address[] memory _ctokens
-    ) Helpers(_connectors) {
+    ) Helpers(_instaIndex, _connectors) {
         _addCtokenMapping(_ctokenNames, _tokens, _ctokens);
     }
 }

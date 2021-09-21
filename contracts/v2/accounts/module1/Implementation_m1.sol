@@ -18,16 +18,18 @@ contract Constants is Variables {
     address internal immutable instaIndex;
     // Connectors Address.
     address public immutable connectorsM1;
+    address public immutable connectorsM1Memory;
 
-    constructor(address _instaIndex, address _connectors) {
+    constructor(address _instaIndex, address _connectors, address _connectorsM1Memory) {
         connectorsM1 = _connectors;
         instaIndex = _instaIndex;
+        connectorsM1Memory = _connectorsM1Memory;
     }
 }
 
 contract InstaImplementationM1 is Constants {
 
-    constructor(address _instaIndex, address _connectors) Constants(_instaIndex, _connectors) {}
+    constructor(address _instaIndex, address _connectors, address _connectorsM1Memory) Constants(_instaIndex, _connectors, _connectorsM1Memory) {}
 
     function decodeEvent(bytes memory response) internal pure returns (string memory _eventCode, bytes memory _eventParams) {
         if (response.length > 0) {

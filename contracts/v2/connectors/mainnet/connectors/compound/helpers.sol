@@ -13,7 +13,10 @@ abstract contract Helpers is DSMath, Basic {
     /**
      * @dev Compound Mapping
      */
-    CompoundMappingInterface internal constant compMapping = CompoundMappingInterface(0xA8F9D4aA7319C54C04404765117ddBf9448E2082);
+    function getCompMapping()internal view returns(CompoundMappingInterface _instaMapping){
+      _instaMapping = CompoundMappingInterface(getMemory().getBroadcastAddr(uint(keccak256("COMPMAPPING"))));
+      require(address(_instaMapping)!=address(0), "COMPMAPPING address is unkown!");
+    }
 
     /**
      * @dev enter compound market

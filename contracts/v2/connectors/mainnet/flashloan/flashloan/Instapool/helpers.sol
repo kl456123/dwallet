@@ -10,7 +10,7 @@ import {
     ISoloMargin
 } from "./interfaces.sol";
 
-import { DSMath } from "../../common/math.sol";
+import { DSMath } from "../../../common/math.sol";
 
 import {Variables} from "./variables.sol";
 
