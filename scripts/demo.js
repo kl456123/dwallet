@@ -81,7 +81,7 @@ async function checkAccount(account){
   // print block number for timestamp
   console.log('block number: ', await web3.eth.getBlockNumber());
   // eth
-  console.log('ETH: ', formatUnits(await web3.eth.getBalance(account), 18));
+  console.log('ETH: ', formatUnits(await web3.eth.getBalance(account), 18).toString());
   // asset tokens
   await Promise.all(erc20Tokens.map(async (token, id)=>{
     const balance = await token.balanceOf(account);
@@ -115,7 +115,6 @@ async function impersonateAndTransfer(amt, token, toAddr) {
 }
 
 function formatUnits(amount, decimals){
-  return amount;
   const toBN = web3.utils.toBN;
   return toBN(amount).div(toBN(10).pow(toBN(decimals)));
 }
@@ -356,7 +355,7 @@ async function main(){
   const ratio = 3;
   const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
   const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
-  await buy(cash, ratio, dsaWallet, alice, 2);
+  await buy(cash, ratio, dsaWallet, alice, 3);
   console.log('---------------buy-------------------');
   await checkAccount(dsaWallet.address);
 
@@ -367,7 +366,7 @@ async function main(){
   // await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
-  await sell(debt, dsaWallet, alice, 2);
+  await sell(debt, dsaWallet, alice, 3);
   console.log('---------------sell-------------------');
   await checkAccount(dsaWallet.address);
 

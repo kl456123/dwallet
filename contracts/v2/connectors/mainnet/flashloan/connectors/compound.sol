@@ -86,8 +86,8 @@ contract CompoundHelpers is Helpers {
      */
     address immutable public mappingAddr;
 
-    constructor(address _mappingaddr){
-        mappingaddr = _mappingaddr;
+    constructor(address _mappingAddr){
+        mappingAddr = _mappingAddr;
     }
     function getComptrollerAddress() internal pure returns (address) {
         return 0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B; // main
@@ -96,7 +96,7 @@ contract CompoundHelpers is Helpers {
     /**
      * @dev Return InstaDApp Mapping Addresses
      */
-    function getMappingAddr() internal pure returns (address) {
+    function getMappingAddr() internal view returns (address) {
         return mappingAddr; // InstaPoolCompoundMapping Address
     }
 
