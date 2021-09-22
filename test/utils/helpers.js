@@ -1,6 +1,6 @@
 const addresses = require('./addresses');
 const InstaIndex = artifacts.require('InstaIndex');
-const ManagerLike = artifacts.require('ManagerLike');
+const ManagerLike = artifacts.require('contracts/v2/connectors/mainnet/connectors/makerdao/interface.sol:ManagerLike');
 const InstaImplementationM1 = artifacts.require('InstaImplementationM1');
 const IERC20 = artifacts.require('IERC20');
 

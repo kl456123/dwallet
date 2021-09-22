@@ -1,5 +1,6 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
+import { console } from 'hardhat/console.sol';
 
 // import files from common directory
 interface TokenInterface {
@@ -24,6 +25,7 @@ interface AaveInterface {
     ) external;
     function repay(address _asset, uint256 _amount, uint256 _rateMode, address _onBehalfOf) external;
     function setUserUseReserveAsCollateral(address _asset, bool _useAsCollateral) external;
+    function getReserveNormalizedIncome(address asset) external view returns (uint256);
 }
 
 interface AaveLendingPoolProviderInterface {
@@ -56,6 +58,7 @@ interface AaveAddressProviderRegistryInterface {
 
 interface ATokenInterface {
     function balanceOf(address _user) external view returns(uint256);
+    function scaledBalanceOf(address user) external view returns (uint256);
 }
 
 contract DSMath {
@@ -183,7 +186,17 @@ abstract contract BasicResolver is AaveHelpers {
 
         tokenContract.approve(address(aave), _amt);
 
+        uint liquidityIndex = aave.getReserveNormalizedIncome(_token);
+        console.log('liquidity index: %s', liquidityIndex);
+
+        console.log('deposit %s amount of token %s', _amt, _token);
         aave.deposit(_token, _amt, address(this), getReferralCode());
+
+        (address aTokenAddress, , ) = aaveData.getReserveTokensAddresses(_token);
+        uint atokenBalance = ATokenInterface(aTokenAddress).scaledBalanceOf(address(this));
+        uint balance = ATokenInterface(aTokenAddress).balanceOf(address(this));
+        console.log('account atoken: %s', atokenBalance);
+        console.log('account underlying token: %s', balance);
 
         if (!getIsColl(aaveData, _token, address(this))) {
             aave.setUserUseReserveAsCollateral(_token, true);
@@ -213,6 +226,7 @@ abstract contract BasicResolver is AaveHelpers {
         _amt = sub(finalBal, initialBal);
 
         convertWethToEth(isEth, tokenContract, _amt);
+        console.log('withdraw %s amount of token %s', _amt, _token);
 
         emit LogWithdraw(token, _amt);
     }

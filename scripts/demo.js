@@ -93,14 +93,16 @@ async function checkAccount(account){
   await Promise.all(debtsTokens.map(async (tokenContract, id)=>{
     const collateredBalance = await tokenContract.balanceOf(account);
     const borrowBalance = await tokenContract.borrowBalanceStored(account);
+    const exchangeRate = await tokenContract.exchangeRateStored();
     console.log(debtsNames[id], ' collateral: ', formatUnits(collateredBalance, debtsDecimals[id]).toString());
     console.log(debtsNames[id], ' debt: ', formatUnits(borrowBalance, debtsDecimals[id]).toString());
+    console.log('exchangeRateMantissa: ', formatUnits(exchangeRate, 18).toString());
   }));
 }
 
 // create dsa from user
 async function buildDSAv2(owner) {
-  const instaIndex = await InstaIndex.deployed();
+  const instaIndex = await InstaIndex.at('0x5FeaeBfB4439F3516c74939A9D04e95AFE82C4ae');
   const receipt = await instaIndex.build(owner, 1, owner);
   const event = receipt.logs[0]
   if(!event)throw new Error('no event found in tx');
@@ -355,7 +357,8 @@ async function main(){
   const ratio = 3;
   const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
   const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
-  await buy(cash, ratio, dsaWallet, alice, 3);
+  const route = 3;
+  await buy(cash, ratio, dsaWallet, alice, route);
   console.log('---------------buy-------------------');
   await checkAccount(dsaWallet.address);
 
@@ -366,7 +369,7 @@ async function main(){
   // await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
-  await sell(debt, dsaWallet, alice, 3);
+  await sell(debt, dsaWallet, alice, route);
   console.log('---------------sell-------------------');
   await checkAccount(dsaWallet.address);
 
@@ -390,6 +393,9 @@ async function main(){
   // await checkAccount(dsaWallet.address);
 }
 
-module.exports = function(callback){
-  main().then(callback).catch(callback);
-}
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

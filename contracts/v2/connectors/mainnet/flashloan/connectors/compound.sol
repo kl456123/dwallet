@@ -1,4 +1,5 @@
 pragma solidity ^0.7.0;
+import "hardhat/console.sol";
 
 interface CTokenInterface {
     function mint(uint mintAmount) external returns (uint);
@@ -127,20 +128,24 @@ contract BasicResolver is CompoundHelpers {
      * @param amt token amount to deposit.
     */
     function deposit(address token, uint amt) external payable{
+        console.log('start to deposit');
         address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         uint _amt = amt;
         enterMarket(cToken);
         if (isETH(token)) {
             _amt = _amt == uint(-1) ? address(this).balance : _amt;
+            console.log('deposit %s amount of token %s(ETH).', _amt, token);
             CETHInterface(cToken).mint{value: _amt}();
         } else {
             TokenInterface tokenContract = TokenInterface(token);
             _amt = _amt == uint(-1) ? tokenContract.balanceOf(address(this)) : _amt;
+            console.log('deposit %s amount of token %s.', _amt, token);
             tokenContract.approve(cToken, _amt);
             require(CTokenInterface(cToken).mint(_amt) == 0, "minting-failed");
         }
 
         emit LogDeposit(token, _amt);
+      console.log('deposit done.');
     }
 
     /**
@@ -149,16 +154,21 @@ contract BasicResolver is CompoundHelpers {
      * @param amt token amount to withdraw.
     */
     function withdraw(address token, uint amt) external {
+        console.log('start to withdraw.');
         address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         CTokenInterface cTokenContract = CTokenInterface(cToken);
         if (amt == uint(-1)) {
+            uint _amt = cTokenContract.balanceOf(address(this));
+            console.log('withdraw %s total amount of token %s.', _amt, cToken);
             TokenInterface tokenContract = TokenInterface(token);
-            require(cTokenContract.redeem(cTokenContract.balanceOf(address(this))) == 0, "full-withdraw-failed");
+            require(cTokenContract.redeem(_amt) == 0, "full-withdraw-failed");
         } else {
+            console.log('withdraw %s amount of token %s.', amt, token);
             require(cTokenContract.redeemUnderlying(amt) == 0, "withdraw-failed");
         }
 
         emit LogWithdraw(token);
+      console.log('withdraw done.');
     }
 
     /**
@@ -167,12 +177,15 @@ contract BasicResolver is CompoundHelpers {
      * @param amt token amount to borrow.
     */
     function borrow(address token, uint amt) external {
+        console.log('start to borrow.');
         uint _amt = amt;
         address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         enterMarket(cToken);
+        console.log('borrow %s amount of token %s.', amt, token);
         require(CTokenInterface(cToken).borrow(_amt) == 0, "borrow-failed");
 
         emit LogBorrow(token, _amt);
+      console.log('borrow done.');
     }
 
     /**
@@ -181,21 +194,25 @@ contract BasicResolver is CompoundHelpers {
      * @param amt token amount to payback.
     */
     function payback(address token, uint amt) external {
+        console.log('start to payback.');
         address cToken = InstaMappingInterface(getMappingAddr()).cTokenMapping(token);
         CTokenInterface cTokenContract = CTokenInterface(cToken);
         uint _amt = amt == uint(-1) ? cTokenContract.borrowBalanceCurrent(address(this)) : amt;
 
         if (isETH(token)) {
             require(address(this).balance >= _amt, "not-enough-eth");
+            console.log('payback %s amount of token %s(ETH)', _amt, token);
             CETHInterface(cToken).repayBorrow{value: _amt}();
         } else {
             TokenInterface tokenContract = TokenInterface(token);
             require(tokenContract.balanceOf(address(this)) >= _amt, "not-enough-token");
             tokenContract.approve(cToken, _amt);
+            console.log('payback %s amount of token %s', _amt, token);
             require(cTokenContract.repayBorrow(_amt) == 0, "repay-failed.");
         }
 
         emit LogPayback(token);
+      console.log('payback done.');
     }
 }
 

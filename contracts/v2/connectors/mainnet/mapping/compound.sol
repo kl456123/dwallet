@@ -14,6 +14,7 @@ interface OnlyCTokenInterface {
     function underlying() external view returns (address);
     function balanceOf(address owner) external view returns (uint256 balance);
     function borrowBalanceStored(address account) external view returns (uint);
+    function exchangeRateStored() external view returns (uint);
 }
 
 interface AccountInterface{

@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "hardhat/console.sol";
 import { Helper } from "./helpers.sol";
 
 import {
@@ -83,12 +84,21 @@ contract DydxFlashloaner is Helper, ICallee, DydxFlashloanBase {
       data,
       (address, uint256, address, uint256, bytes)
     );
-
+    uint value0;
+    uint value1;
     bool isWeth = (cd.route != 0 && cd.token != wethAddr) || cd.token == ethAddr;
+    if(cd.token==ethAddr){
+      value0 = wethContract.balanceOf(address(this));
+    }else{
+      value0 = IERC20(cd.token).balanceOf(address(this));
+    }
     if (isWeth) {
-      wethContract.withdraw(wethContract.balanceOf(address(this)));
+      uint value = wethContract.balanceOf(address(this));
+      console.log('swap %s amount of weth to eth', value);
+      wethContract.withdraw(value);
     }
 
+    console.log("Select borrow %s amount of %s using route: %s", cd.amount, cd.token, cd.route);
     selectBorrow(cd.route, cd.token, cd.amount);
 
     if (cd.token == ethAddr) {
@@ -99,11 +109,27 @@ contract DydxFlashloaner is Helper, ICallee, DydxFlashloanBase {
 
     Address.functionCall(cd.dsa, cd.callData, "DSA-flashloan-fallback-failed");
 
+    console.log("Select payback");
     selectPayback(cd.route, cd.token);
 
     if (isWeth) {
-      wethContract.deposit{value: address(this).balance}();
+      uint value = address(this).balance;
+      console.log('swap %s amount of eth back to weth', value);
+      wethContract.deposit{value: value}();
     }
+
+  if(cd.token==ethAddr){
+      value1 = wethContract.balanceOf(address(this));
+    }else{
+      value1 = IERC20(cd.token).balanceOf(address(this));
+    }
+    uint loss;
+    if(value0>value1){
+     loss = sub(value0, value1);
+    }else{
+     loss = sub(value1, value0);
+    }
+    console.log('%s loss amount during flashloan in eth', loss);
   }
 
   function routeDydx(address token, uint256 amount, uint256 route, bytes memory data) internal {
@@ -131,10 +157,12 @@ contract DydxFlashloaner is Helper, ICallee, DydxFlashloanBase {
     accountInfos[0] = _getAccountInfo();
 
     uint256 initialBal = add(_tokenContract.balanceOf(address(this)), address(this).balance);
+    console.log('solo operation start with balance: .', initialBal);
 
     solo.operate(accountInfos, operations);
 
     uint256 finalBal = add(_tokenContract.balanceOf(address(this)), address(this).balance);
+    console.log('solo operation end with balance.', finalBal);
 
     if (_token == wethAddr) {
       uint256 _dif = wmul(_amount, 10000000000); // Taking margin of 0.00000001%
