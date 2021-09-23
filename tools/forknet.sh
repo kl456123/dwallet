@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NETWORK_URL="https://mainnet.infura.io/v3/d9054056af514990a01542c57b706abe";
+NETWORK_URL="https://eth-mainnet.alchemyapi.io/v2/OkZHitwpruYSM2KflCfd9sXNMNOsuIwJ";
 GASLIMIT=10000000000000;
 
 ganache-cli -l ${GASLIMIT} -f ${NETWORK_URL} \
