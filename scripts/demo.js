@@ -42,9 +42,9 @@ const maxValue = "11579208923731619542357098500868790785326998466564056403945758
 
 const erc20Tokens = [];
 const debtsTokens = [];
-const erc20Address = [TOKEN_ADDR.DAI.contract, TOKEN_ADDR.USDC.contract, TOKEN_ADDR.WETH.contract];
-const erc20Names = ['DAI', 'USDC', 'WETH'];
-const erc20Decimals = [TOKEN_ADDR.DAI.decimals, TOKEN_ADDR.USDC.decimals, TOKEN_ADDR.WETH.decimals];
+const erc20Address = [TOKEN_ADDR.USDC.contract];
+const erc20Names = ['USDC'];
+const erc20Decimals = [TOKEN_ADDR.USDC.decimals];
 const debtsNames = ['cUSDC', 'cETH'];
 const debtsDecimals = [8, 8];
 
@@ -81,11 +81,11 @@ async function checkAccount(account){
   // print block number for timestamp
   console.log('block number: ', await web3.eth.getBlockNumber());
   // eth
-  console.log('ETH: ', formatUnits(await web3.eth.getBalance(account), 18).toString());
+  console.log('ETH 现金账户: ', formatUnits(await web3.eth.getBalance(account), 18).toString());
   // asset tokens
   await Promise.all(erc20Tokens.map(async (token, id)=>{
     const balance = await token.balanceOf(account);
-    console.log(erc20Names[id], ': ', formatUnits(balance, erc20Decimals[id]).toString());
+    console.log(erc20Names[id], ' 现金账户: ', formatUnits(balance, erc20Decimals[id]).toString());
   }));
 
 
@@ -93,8 +93,8 @@ async function checkAccount(account){
   await Promise.all(debtsTokens.map(async (tokenContract, id)=>{
     const collateredBalance = await tokenContract.balanceOf(account);
     const borrowBalance = await tokenContract.borrowBalanceStored(account);
-    console.log(debtsNames[id], ' collateral: ', formatUnits(collateredBalance, debtsDecimals[id]).toString());
-    console.log(debtsNames[id], ' debt: ', formatUnits(borrowBalance, debtsDecimals[id]).toString());
+    console.log(debtsNames[id], ' ctoken质押账户: ', formatUnits(collateredBalance, debtsDecimals[id]).toString());
+    console.log(debtsNames[id], ' token贷款账户: ', formatUnits(borrowBalance, debtsDecimals[id]).toString());
   }));
 }
 
@@ -115,8 +115,9 @@ async function impersonateAndTransfer(amt, token, toAddr) {
 }
 
 function formatUnits(amount, decimals){
-  const toBN = web3.utils.toBN;
-  return toBN(amount).div(toBN(10).pow(toBN(decimals)));
+  return amount;
+  // const toBN = web3.utils.toBN;
+  // return toBN(amount).div(toBN(10).pow(toBN(decimals)));
 }
 
 function parseUnits(amount, decimals){
@@ -312,12 +313,18 @@ async function payback(amt, dsaWallet, wallet){
   await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
 }
 
-async function withdraw(dsaWallet, wallet){
+async function withdraw(amt, dsaWallet, wallet){
+  let _amt;
+  if (amt == -1){
+    _amt = maxValue;
+  }else{
+    _amt = parseUnits(amt, TOKEN_ADDR.USDC.decimals);
+  }
   const spells = [
     {
       connector: "COMPOUND-A",
       method: "withdraw",
-      args: ["ETH-A", maxValue, 0, 0]
+      args: ["ETH-A", _amt, 0, 0]
     }
   ];
   await dsaWallet.cast(...encodeSpells(spells), wallet, {from: wallet});
@@ -343,20 +350,27 @@ async function withdrawAndSwap(dsaWallet, wallet){
 async function main(){
   // accounts
   const accounts = await web3.eth.getAccounts();
-  const alice = accounts[3];
+  const alice = accounts[2];
   const bob = accounts[4];
 
   // init dsa
   const dsaWallet = await init(alice);
+  console.log('\n--------------场景一---------------------------------------');
+  console.log('alice 初始账户资金');
   await checkAccount(dsaWallet.address);
 
   // buy with flashloan(InstaPool)
   // 200 USDC(alice) + 600USDC(InstaPool)  => Uniswap => ETH
-  const ratio = 3;
-  const cash = parseUnits(200, TOKEN_ADDR.USDC.decimals);
-  const debt = parseUnits(200 * (ratio-1), TOKEN_ADDR.USDC.decimals);
-  await buy(cash, ratio, dsaWallet, alice, 3);
-  console.log('---------------buy-------------------');
+  const ratio0 = 3;
+  const cash0 = parseUnits(200, TOKEN_ADDR.USDC.decimals);
+  const debt0 = parseUnits(200 * (ratio0-1), TOKEN_ADDR.USDC.decimals);
+  await buy(cash0, ratio0, dsaWallet, alice, 3);
+  console.log('\n---------------------------------------------------------');
+  console.log('alice使用三倍杠杆交易');
+  console.log('1. alice向闪电贷借入400USDC');
+  console.log('2. 花费自有资金200USDC和借入的400USDC购买价值600USDC的ETH');
+  console.log('3. 质押所有ETH借入400USDC偿还闪电贷');
+  console.log('alice 三倍杠杆交易后账户资金');
   await checkAccount(dsaWallet.address);
 
   // for(let i=0; i<100; i++){
@@ -366,10 +380,30 @@ async function main(){
   // await checkAccount(dsaWallet.address);
 
   // sell all collatered eth for usdc
-  await sell(debt, dsaWallet, alice, 3);
-  console.log('---------------sell-------------------');
+  await sell(debt0, dsaWallet, alice, 3);
+  console.log('\n---------------------------------------------------------');
+  console.log('alice平仓杠杆头寸');
+  console.log('1. 向闪电贷借入400USDC');
+  console.log('2. 偿还借款赎回价值600USDC的ETH');
+  console.log('3. 卖出所有ETH获得600USDC并偿还闪电贷的400USDC');
+  console.log('alice 平仓后账户资金(资金损耗主要为uniswap千三手续费)');
   await checkAccount(dsaWallet.address);
 
+  console.log('\n--------------场景二---------------------------------------');
+  console.log('alice 初始账户资金');
+  await checkAccount(dsaWallet.address);
+
+  const ratio1 = 2;
+  const cash1 = parseUnits(200, TOKEN_ADDR.USDC.decimals);
+  const debt1 = parseUnits(200 * (ratio1-1), TOKEN_ADDR.USDC.decimals);
+  await buy(cash1, ratio1, dsaWallet, alice, 3);
+  console.log('\n---------------------------------------------------------');
+  console.log('alice使用两倍杠杆交易');
+  console.log('1. alice向闪电贷借入200USDC');
+  console.log('2. 花费自有资金200USDC和借入的200USDC购买价值400USDC的ETH');
+  console.log('3. 质押所有ETH借入200USDC偿还闪电贷');
+  console.log('alice 两倍杠杆交易后账户资金');
+  await checkAccount(dsaWallet.address);
   // swap 600 usdc for eth
   // note that little loss of 0.3% protocol fee in uniswap
   // await swap(600, dsaWallet, alice);
@@ -377,13 +411,15 @@ async function main(){
   // await checkAccount(dsaWallet.address);
 
   // payback all, including 400 usdc + its interest
-  // await payback(-1, dsaWallet, alice);
-  // console.log('---------------payback-------------------');
-  // await checkAccount(dsaWallet.address);
+  await payback(-1, dsaWallet, alice);
+  console.log('\n---------------------------------------------------------');
+  console.log('alice使用自有200USDC偿还所有贷款');
+  await checkAccount(dsaWallet.address);
 
-  // await withdraw(dsaWallet, alice);
-  // console.log('---------------withdraw-------------------');
-  // await checkAccount(dsaWallet.address);
+  console.log('\n---------------------------------------------------------');
+  console.log('alice取出所有质押的价值400USDC的ETH');
+  await withdraw(-1, dsaWallet, alice);
+  await checkAccount(dsaWallet.address);
 
   // await withdrawAndSwap(dsaWallet, alice);
   // console.log('---------------withdraw and swap-------------------');
