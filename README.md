@@ -17,13 +17,24 @@ const spells = [
 await dsa.cast(...encodeSpells(spells), {from: user});
 ```
 
-## Test
+## Demo
 ```bash
 # fork from etherum mainnet
 bash ./tools/forknet.sh
 
+truffe migrate
+
+truffle exec ./scripts/demo.js
+
+```
+
+## Test
+```bash
+bash ./tools/forknet.sh
+
 truffle test
 ```
+
 
 
 ## Develop
